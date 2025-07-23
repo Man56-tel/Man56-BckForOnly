@@ -1,23 +1,19 @@
-import telegram
-from telegram.ext import Updater, CommandHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 import datetime
-import database as db
+import sqlite3
 import config
-import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 
-bot = telegram.Bot(token=config.TELEGRAM_TOKEN)
 scheduler = BackgroundScheduler()
 
-def start(update, context):
+# Глобальная переменная для хранения Application
+application = None
+
+async def start(update: Update, context):
     chat_id = update.effective_chat.id
-    context.bot.send_message(chat_id=chat_id, text="Вы подписались на напоминания!")
-    # Сохраняем chat_id клиента, если он дал согласие
-    conn = sqlite3.connect('bookings.db')
-    cur = conn.cursor()
-    # Это упрощённо — в реальности нужно привязать к клиенту
-    # Можно добавить таблицу client_notifications(chat_id, phone_or_name)
-    conn.close()
+    await update.message.reply_text("Вы подписались на напоминания!")
+    # Здесь можно сохранить chat_id в БД, если нужно
 
 def send_reminders():
     """Отправляем напоминания за день до визита"""
@@ -30,7 +26,7 @@ def send_reminders():
         FROM bookings b
         JOIN masters m ON b.master_id = m.id
         JOIN services s ON b.service_id = s.id
-        WHERE b.date = ? AND b.telegram_notify = 1 AND b.chat_id IS NOT NULL
+        WHERE b.date = ? AND b.telegram_notify = 1
     """, (tomorrow,))
     bookings = [dict(row) for row in cur.fetchall()]
     conn.close()
@@ -45,7 +41,7 @@ def send_reminders():
 Ждём вас!
         """.strip()
         try:
-            bot.send_message(chat_id=book['chat_id'], text=message)
+            application.bot.send_message(chat_id=book['chat_id'], text=message)
         except Exception as e:
             print(f"Не удалось отправить в чат {book['chat_id']}: {e}")
 
@@ -55,14 +51,17 @@ def start_bot():
         print("Токен Telegram не задан — бот не запущен.")
         return
 
-    updater = Updater(config.TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    
-    thread = threading.Thread(target=updater.start_polling, daemon=True)
+    global application
+    application = Application.builder().token(config.TELEGRAM_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+
+    # Запускаем polling в фоновом потоке
+    from threading import Thread
+    thread = Thread(target=application.run_polling, daemon=True)
     thread.start()
     print("Telegram-бот запущен.")
 
-    # Запуск напоминаний каждый день в 9:00
+    # Назначаем задачу на 9:00 ежедневно
     scheduler.add_job(send_reminders, 'cron', hour=9, minute=0)
     scheduler.start()
