@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import config
 
 DB_NAME = 'bookings.db'
 
