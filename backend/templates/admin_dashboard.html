@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head><title>Кабинет мастера</title></head>
+<body>
+<h2>Добро пожаловать, {{ master.name }}!</h2>
+<a href="/">&larr; На сайт</a> | <a href="/admin/logout">Выйти</a>
+
+<h3>Ваши записи</h3>
+<ul>
+{% for b in data.bookings %}
+  <li>{{ b.date }} {{ b.time }} — {{ b.client_name }} ({{ b.phone }})</li>
+{% endfor %}
+</ul>
+
+<h3>Рабочее время</h3>
+<p>Настроено через базу данных. Для редактирования — используйте SQLite-редактор.</p>
+
+</body>
+</html>
